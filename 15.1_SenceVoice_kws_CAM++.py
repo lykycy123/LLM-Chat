@@ -32,14 +32,14 @@ AUDIO_RATE = 16000        # 音频采样率
 AUDIO_CHANNELS = 1        # 单声道
 CHUNK = 1024              # 音频块大小
 VAD_MODE = 3              # VAD 模式 (0-3, 数字越大越敏感)
-OUTPUT_DIR = "./output"   # 输出目录
+OUTPUT_DIR = "./output"   # 输出目录，存储语音识别结果的暂存wav文件
 NO_SPEECH_THRESHOLD = 1   # 无效语音阈值，单位：秒
-folder_path = "./Test_QWen2_VL/"
+folder_path = "./Test_QWen2_VL/" #存储输出的语音文件，sft_tmp_{audio_file_count}.mp3为系统自身语音，sft_{audio_file_count}.mp3为大语言模型回答语音
 audio_file_count = 0
 audio_file_count_tmp = 0
 
 # 确保输出目录存在
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True) 
 os.makedirs(folder_path, exist_ok=True)
 
 # 队列用于音频和视频同步缓存
@@ -445,12 +445,12 @@ def Inference(TEMP_AUDIO_FILE=f"{OUTPUT_DIR}/audio_0.wav"):
                 # language = detect(text).split("-")[0]
 
                 language_speaker = {
-                "ja" : "ja-JP-NanamiNeural",            # ok
-                "fr" : "fr-FR-DeniseNeural",            # ok
-                "es" : "ca-ES-JoanaNeural",             # ok
-                "de" : "de-DE-KatjaNeural",             # ok
+                #"ja" : "ja-JP-NanamiNeural",            # ok
+                #"fr" : "fr-FR-DeniseNeural",            # ok
+                #"es" : "ca-ES-JoanaNeural",             # ok
+                #"de" : "de-DE-KatjaNeural",             # ok
                 "zh" : "zh-CN-XiaoyiNeural",            # ok
-                "en" : "en-US-AnaNeural",               # ok
+                #"en" : "en-US-AnaNeural",               # ok
                 }
 
                 if language not in language_speaker.keys():

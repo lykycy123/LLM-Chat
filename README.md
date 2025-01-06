@@ -1,64 +1,41 @@
-# :sparkles: 241130-updata
+# 项目简介
 
-## 新增声纹识别功能
+本项目参考开源代码https://github.com/ABexit/ASR-LLM-TTS
+在VAD实时检测对话、自由打断、多模态-多语种问答等功能基础上，进一步添加声纹识别、自由定制唤醒词、历史对话记忆功能。自由定制唤醒词通过ASR功能实现，使用汉字转为拼音的小技巧来提高召回率。声纹识别通过阿里开源的CAM++实现，其使用中文数据训练，适配中文对话场景。
 
-设置固定声纹注册语音存储目录，如目录为空则自动进入声纹注册模式。默认注册语音时长大于3秒，可自定义，一般而言时长越长，声纹效果越稳定。
-声纹模型采用阿里开源的CAM++，其采用3D-Speaker中文数据训练，符合中文对话需求
+# 框架
+1.CosyVoice 多语言的大型语音生成模型,不仅支持多种语言的语音生成，还提供了从推理到训练再到部署的全栈能力。该模型在语音合成领域具有重要性，因为它能够生成自然流畅、接近真人的语音，适用于多种语言环境。 (https://github.com/FunAudioLLM/CosyVoice)
 
-## 新增自由定义唤醒词功能
+2.SenseVoice 是多语言音频理解模型，具有包括语音识别、语种识别、语音情感识别，声学事件检测能力。(https://github.com/modelscope/FunASR),
+中文识别建议使用"paraformer-zh"模型，原项目使用CosyVoiceSmall作为模型运行识别出来为乱码
 
-使用SenceVoice的语音识别能力实现，将语音识别的汉字转为拼音进行匹配。将唤醒词/指令词设置为中文对应拼音，可自由定制。15.0_SenceVoice_kws_CAM++.py中默认为'ni hao xiao qian'，15.1_SenceVoice_kws_CAM++.py中默认为'zhan qi lai'[暗影君王实在太cool辣]
+3.Qwen2.5作为大语言模型，具备自然语言理解、文本生成、视觉理解、音频理解、工具使用、角色扮演、作为AI Agent进行互动等多种能力。(https://github.com/QwenLM/Qwen2.5)
 
-## 新增对话历史内容记忆功能
+# 内容速览
+## 文件介绍
+多角色拟人小说朗读器：16_Inference_QWen2.5_story.py
 
-通过建立user、system历史队列实现。开启新一轮对话时，首先获取历史记忆，而后拼接新的输入指令。可自由定义最大历史长度，默认为512。
-
-对应脚本：
-
+实时检测对话、自由打断、多模态-多语种问答、声纹识别、自由定制唤醒词、历史对话记忆、自由定制唤醒词
 无历史记忆：15.0_SenceVoice_kws_CAM++.py
-
 有历史记忆：15.1_SenceVoice_kws_CAM++.py
 
-[演示demo，B站] (https://www.bilibili.com/video/BV1Q6zpYpEgv)
+pretrained_models是存放各个模型的地方
+cosyvoice是项目主要框架
+output是输出目录，存储语音识别结果的暂存wav文件
+Test_QWen2_VL存储输出的语音文件，sft_tmp_{audio_file_count}.mp3为系统自身语音，sft_{audio_file_count}.mp3为大语言模型回答语音
+SpeakerVerification_DIR\enroll_wav存储声纹模型
 
-Have fun! 😊
+整体代码流程：语音录制 -> 语音保存 -> 语音识别 -> 文本处理 -> 大语言模型调用 -> 响应处理。
 
-# :sparkles: 241123-updata
+本项目主要关注15版本的各种功能，如关注其他功能，请参考原博主项目
 
-## 更新单模态自由打断语音交互
+## 15.1版本关键模块介绍
+flag_KWS_used 唤醒词是否使用
+flag_sv_used 声纹识别是否使用
+def extract_chinese_and_convert_to_pinyin(input_string) 将识别转化成拼音有利于提高唤醒词识别率
+def Inference(TEMP_AUDIO_FILE=f"{OUTPUT_DIR}/audio_0.wav") 推理部分，里面可以设置自己所需，speaker默认注释掉除中文外的其他语种
 
-使用webrtcvad进行实时vad检测，设置一个检测时间段=0.5s，有效语音激活率=40%，每个检测chunk=20ms。也就是说500ms/20ms=25个检测段，如果25*0.4=10个片段激活，则该0.5秒为有效音，加入缓存。
 
-可改进点：使用模型VAD，去除噪声干扰
-
-13_SenceVoice_QWen2.5_edgeTTS_realTime.py
-
-## 音视频多模态语音交互
-
-基于以上逻辑，替换QWen2.5-1.5B模型为QWen2-VL-2B，可实现音视频多模态交互。模型具有两种输入格式，图片/视频
-
-14_SenceVoice_QWen2VL_edgeTTS_realTime.py
-
-[演示demo，B站] (https://www.bilibili.com/video/BV1uQBCYrEYL)
-
-# :sparkles: 241027-语音交互大模型/SenceVoice-QWen2.5-TTS
-
-## 框架
-
-SenceVoice-QWen2.5-CosyVoice搭建
-
-此工程主代码来于[CosyVoice] (https://github.com/FunAudioLLM/CosyVoice)
-
-在CosyVoice基础上添加[SenceVoice] (https://github.com/modelscope/FunASR) 作为语音识别模型
-
-添加[QWwn2.5] (https://github.com/QwenLM/Qwen2.5) 作为大语言模型进行对话理解
-
-## 3种语音合成方法
-
-CoosyVoice推理速度慢，严重影响对话实时性，额外添加pyttsx3和edgeTTS
-
-EdgeTTS实验过程出现链接错误问题，升级版本至6.1.17解决，无需科学上网
-
-All dependencies are listed in requirements.txt, the interactive inference scripts are 10/11/12_SenceVoice_QWen2.5_xxx.py. 
-
-Have fun! 😊
+# 快速开始
+根据框架，下载所需要的模型到pretrained_models中并更改代码中的model_dir
+打开ASR-LLM-TTS-MASTER，以此为工作空间，安装所需要的包，`pip install -r requirements.txt`，不需要全部都安装好，遇到报错的先自行注释然后自行安装。然后选择0到16中自己感兴趣的版本，边运行边找出缺失的包进行安装
