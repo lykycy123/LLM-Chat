@@ -1,6 +1,7 @@
 # 项目简介
 
 本项目参考开源代码https://github.com/ABexit/ASR-LLM-TTS
+
 主要关注实时检测对话、自由打断、多模态-多语种问答、声纹识别、自由定制唤醒词、历史对话记忆、自由定制唤醒词等功能，打造语音对话助手，为后面的大语言模型移动机械臂做模块准备
 
 # 框架
@@ -30,6 +31,7 @@ SpeakerVerification_DIR\enroll_wav存储声纹模型
 本项目主要关注15版本的各种功能，如关注其他功能，请参考原博主项目
 
 ## 15.1版本关键模块介绍
+set_KWS 自定义唤醒词，用拼音
 flag_KWS_used 唤醒词是否使用
 flag_sv_used 声纹识别是否使用
 def extract_chinese_and_convert_to_pinyin(input_string) 将识别转化成拼音有利于提高唤醒词识别率
