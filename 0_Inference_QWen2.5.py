@@ -20,7 +20,8 @@ def play_audio(file_path):
     finally:
         pygame.mixer.quit()
 
-model_name = r".\pretrained_models\Qwen2.5-1.5B-Instruct"
+# model_name = r".\pretrained_models\Qwen2.5-1.5B-Instruct"
+model_name = r"pretrained_models\DeepSeek-R1-Distill-Qwen-1.5B"
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     torch_dtype="auto",
@@ -31,6 +32,9 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 cosyvoice = CosyVoice(r'./pretrained_models/CosyVoice-300M', load_jit=True, load_onnx=False, fp16=True)
 # sft usage
 print(cosyvoice.list_avaliable_spks())
+
+# 记录开始时间
+start_time = time.time()
 
 prompt = "你好，你叫什么名字?"
 messages = [
@@ -53,6 +57,13 @@ generated_ids = [
 ]
 
 response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+
+# 记录结束时间
+end_time = time.time()
+
+# 计算调用所花费的时间
+api_call_time = end_time - start_time
+print(f"离线大模型推理花费的时间: {api_call_time} 秒")
 
 print("Input:", prompt)
 print("Answer:", response)

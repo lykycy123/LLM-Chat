@@ -55,10 +55,11 @@ last_vad_end_time = 0  # 上次保存的 VAD 有效段结束时间
 
 
 # --- 唤醒词、声纹变量配置 ---
-set_KWS = "xiao qian ni hao"
+#set_KWS = "xiao qian ni hao"
 #set_KWS = "shuo hua xiao qian"
 # set_KWS = "zhan qi lai"
 #set_KWS = "hello"
+set_KWS = "ni hao xiao qian"
 flag_KWS = 0
 
 flag_KWS_used = 1
@@ -80,7 +81,7 @@ def extract_chinese_and_convert_to_pinyin(input_string):
     :return: 转换后的拼音字符串
     """
     # 使用正则表达式提取所有汉字
-    chinese_characters = re.findall(r'[\u4e00-\u9fa5]', input_string)
+    chinese_characters = re.findall(r'[\u4e00-\u9fff]', input_string)
     # 将汉字列表合并为字符串
     chinese_text = ''.join(chinese_characters)
     
@@ -110,8 +111,8 @@ def audio_recorder():
         data = stream.read(CHUNK)
         audio_buffer.append(data)
         
-        # 每 0.5 秒检测一次 VAD
-        if len(audio_buffer) * CHUNK / AUDIO_RATE >= 0.5:
+        # 每 0.2 秒检测一次 VAD
+        if len(audio_buffer) * CHUNK / AUDIO_RATE >= 0.2:
             # 拼接音频数据并检测 VAD
             raw_audio = b''.join(audio_buffer)
             vad_result = check_vad_activity(raw_audio)
@@ -139,27 +140,68 @@ def audio_recorder():
     stream.close()
     p.terminate()
 
-# 视频录制线程
-def video_recorder():
-    global video_queue, recording_active
+# # 视频录制线程
+# import pyrealsense2 as rs
+# def video_recorder():
+#     global video_queue, recording_active
     
-    cap = cv2.VideoCapture(0)  # 使用默认摄像头
-    print("视频录制已开始")
+#     cap = cv2.VideoCapture(0)  # 使用默认摄像头
+#     print("视频录制已开始")
     
-    while recording_active:
-        ret, frame = cap.read()
-        if ret:
-            video_queue.put((frame, time.time()))
+#     while recording_active:
+#         ret, frame = cap.read()
+#         if ret:
+#             video_queue.put((frame, time.time()))
             
-            # 实时显示摄像头画面
-            cv2.imshow("Real Camera", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
-                break
-        else:
-            print("无法获取摄像头画面")
+#             # 实时显示摄像头画面
+#             cv2.imshow("Real Camera", frame)
+#             if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
+#                 break
+#         else:
+#             print("无法获取摄像头画面")
     
-    cap.release()
-    cv2.destroyAllWindows()
+#     cap.release()
+#     cv2.destroyAllWindows()
+
+
+
+# # realsense视频录制线程
+# def video_recorder():
+#     global video_queue, recording_active
+    
+#     recording_active = True
+#     # 配置RealSense管道
+#     pipeline = rs.pipeline()
+#     config = rs.config()
+#     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+    
+#     # 启动管道
+#     pipeline.start(config)
+#     print("视频录制已开始")
+    
+#     while recording_active:
+#         # 等待帧
+#         frames = pipeline.wait_for_frames()
+#         color_frame = frames.get_color_frame()
+#         if not color_frame:
+#             continue
+        
+#         # 转换为numpy数组
+#         frame = np.asanyarray(color_frame.get_data())
+        
+#         # 将帧放入队列
+#         video_queue.put((frame, time.time()))
+        
+#         # 实时显示摄像头画面
+#         cv2.imshow("Real Camera", frame)
+#         if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
+#             break
+    
+#     # 停止管道
+#     pipeline.stop()
+#     cv2.destroyAllWindows()
+
+
 
 # 检测 VAD 活动
 def check_vad_activity(audio_data):
@@ -301,9 +343,10 @@ sv_pipeline = pipeline(
     model_revision='v1.0.0'
 )
 
-# --------- QWen2.5大语言模型 ---------------
+# --------- deepseek大语言模型 ---------------
 
-model_name = r".\pretrained_models\Qwen2.5-1.5B-Instruct"
+model_name = r"pretrained_models\DeepSeek-R1-Distill-Qwen-1.5B"
+print(f"=====================Loading model from {model_name}=====================")
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     torch_dtype="auto",
@@ -379,7 +422,7 @@ def Inference(TEMP_AUDIO_FILE=f"{OUTPUT_DIR}/audio_0.wav"):
         res = model_senceVoice.generate(
             input=input_file,
             cache={},
-            language="auto", # "zn", "en", "yue", "ja", "ko", "nospeech"
+            language="zn", # "zn", "en", "yue", "ja", "ko", "nospeech"
             use_itn=False,
         )
         prompt = res[0]['text'].split(">")[-1]
@@ -409,10 +452,16 @@ def Inference(TEMP_AUDIO_FILE=f"{OUTPUT_DIR}/audio_0.wav"):
 
                 print("History:", context)
                 print("ASR OUT:", prompt)
+                
+                system_prompt = "你叫小千，是一个18岁的女大学生，性格活泼开朗，说话俏皮简洁，回答问题不会超过50字。"
+                
+                print("==================","system_prompt:", system_prompt,"====================")
+                
+                
                 # ---------SenceVoice --end----------
                 # -------- 模型推理阶段，将语音识别结果作为大模型Prompt ------
                 messages = [
-                    {"role": "system", "content": "你叫小千，是一个18岁的女大学生，性格活泼开朗，说话俏皮简洁，回答问题不会超过50字。"},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ]
                 text = tokenizer.apply_chat_template(

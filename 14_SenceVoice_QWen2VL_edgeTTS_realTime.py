@@ -17,6 +17,8 @@ import edge_tts
 import asyncio
 from time import sleep
 
+import pyrealsense2 as rs
+
 import langid
 from langdetect import detect
 
@@ -29,7 +31,7 @@ AUDIO_RATE = 16000        # 音频采样率
 AUDIO_CHANNELS = 1        # 单声道
 CHUNK = 1024              # 音频块大小
 VAD_MODE = 3              # VAD 模式 (0-3, 数字越大越敏感)
-OUTPUT_DIR = "./output"   # 输出目录
+OUTPUT_DIR = "./output_multi"   # 输出目录
 NO_SPEECH_THRESHOLD = 1   # 无效语音阈值，单位：秒
 audio_file_count = 0
 
@@ -98,26 +100,67 @@ def audio_recorder():
     stream.close()
     p.terminate()
 
+# # 视频录制线程
+# def video_recorder():
+#     global video_queue, recording_active
+    
+#     cap = cv2.VideoCapture(0)  # 使用默认摄像头
+#     print("视频录制已开始")
+    
+#     while recording_active:
+#         ret, frame = cap.read()
+#         if ret:
+#             video_queue.put((frame, time.time()))
+            
+#             # 实时显示摄像头画面
+#             cv2.imshow("Real Camera", frame)
+#             if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
+#                 break
+#         else:
+#             print("无法获取摄像头画面")
+    
+#     cap.release()
+#     cv2.destroyAllWindows()
+
+#用原来代码会卡死，增加个这个类可以防止
+class VideoFrame:
+    def __init__(self, frame, timestamp):
+        self.frame = frame.copy()  # 深拷贝避免原帧被修改
+        self.timestamp = timestamp
+        self.frame_index = 0  # 可添加自增索引
+    
+    def release(self):
+        self.frame = None  # 显式释放内存
+
 # 视频录制线程
 def video_recorder():
     global video_queue, recording_active
     
-    cap = cv2.VideoCapture(0)  # 使用默认摄像头
+    # 配置 RealSense 管道
+    pipeline = rs.pipeline()
+    config = rs.config()
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+    # 启动管道
+    pipeline.start(config)
     print("视频录制已开始")
     
     while recording_active:
-        ret, frame = cap.read()
-        if ret:
-            video_queue.put((frame, time.time()))
-            
-            # 实时显示摄像头画面
-            cv2.imshow("Real Camera", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
-                break
-        else:
-            print("无法获取摄像头画面")
+        frames = pipeline.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        if not color_frame:
+            continue
+
+        # 将 RealSense 帧转换为 OpenCV 格式
+        frame = np.asanyarray(color_frame.get_data())
+        video_queue.put(VideoFrame(frame, time.time()))
+        
+        # 实时显示摄像头画面
+        cv2.imshow("Real Camera", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):  # 按 Q 键退出
+            break
     
-    cap.release()
+    pipeline.stop()
     cv2.destroyAllWindows()
 
 # 检测 VAD 活动
@@ -176,12 +219,20 @@ def save_audio_video():
     wf.close()
     print(f"音频保存至 {audio_output_path}")
     
+    # # 保存视频
+    # video_frames = []
+    # while not video_queue.empty():
+    #     frame, timestamp = video_queue.get()
+    #     if start_time <= timestamp <= end_time:
+    #         video_frames.append(frame)
+    
     # 保存视频
     video_frames = []
     while not video_queue.empty():
-        frame, timestamp = video_queue.get()
-        if start_time <= timestamp <= end_time:
-            video_frames.append(frame)
+        video_frame = video_queue.get()
+        if start_time <= video_frame.timestamp <= end_time:
+            video_frames.append(video_frame.frame)
+    
     
     if video_frames:
         out = cv2.VideoWriter(video_output_path, cv2.VideoWriter_fourcc(*'XVID'), 20.0, (640, 480))
@@ -198,7 +249,7 @@ def save_audio_video():
         inference_thread.start()
     else:
         pass
-        # print("无可保存的视频帧")
+        print("无可保存的视频帧")
     
     # 记录保存的区间
     saved_intervals.append((start_time, end_time))
@@ -228,17 +279,20 @@ async def amain(TEXT, VOICE, OUTPUT_FILE) -> None:
 # -------------- Load QWen2-VL Model ------------
 # default: Load the model on the available device(s)
 model = Qwen2VLForConditionalGeneration.from_pretrained(
-    "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto", device_map="auto"
+    "pretrained_models\Qwen2-VL-2B-Instruct", torch_dtype="auto", device_map="auto"
 )
+
+
+
 # ------- 设置分辨率，降低现存占用 -------
 min_pixels = 256*28*28
 max_pixels = 512*28*28
-processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+processor = AutoProcessor.from_pretrained("pretrained_models\Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
 # --------------------------------------
 
 # -------- SenceVoice 语音识别 --模型加载-----
 model_dir = r".\pretrained_models\SenseVoiceSmall"
-model_senceVoice = AutoModel( model=model_dir, trust_remote_code=True, )
+model_senceVoice = AutoModel( model=model_dir, trust_remote_code=True, disable_update=True)
 folder_path = "./Test_QWen2_VL/"
 
 def Inference(TEMP_VIDEO_FILE, TEMP_AUDIO_FILE):
@@ -264,11 +318,11 @@ def Inference(TEMP_VIDEO_FILE, TEMP_AUDIO_FILE):
     res = model_senceVoice.generate(
         input=input_file,
         cache={},
-        language="auto", # "zn", "en", "yue", "ja", "ko", "nospeech"
+        language="nospeech", # "zn", "en", "yue", "ja", "ko", "nospeech"
         use_itn=False,
     )
-    # prompt = res[0]['text'].split(">")[-1]
-    prompt = res[0]['text'].split(">")[-1] + "，回答简短一些，保持50字以内！"
+    prompt = res[0]['text'].split(">")[-1]
+    # prompt = res[0]['text'].split(">")[-1] + "，回答简短一些，保持50字以内！"
     print("ASR OUT:", prompt)
     # ---------SenceVoice 推理--end----------
 
@@ -344,19 +398,21 @@ def Inference(TEMP_VIDEO_FILE, TEMP_AUDIO_FILE):
     # language = detect(text)
 
     language_speaker = {
-    "ja" : "ja-JP-NanamiNeural",            # ok
-    "fr" : "fr-FR-DeniseNeural",            # ok
-    "es" : "ca-ES-JoanaNeural",             # ok
-    "de" : "de-DE-KatjaNeural",             # ok
+    # "ja" : "ja-JP-NanamiNeural",            # ok
+    # "fr" : "fr-FR-DeniseNeural",            # ok
+    # "es" : "ca-ES-JoanaNeural",             # ok
+    # "de" : "de-DE-KatjaNeural",             # ok
     "zh" : "zh-CN-XiaoyiNeural",            # ok
-    "en" : "en-US-AnaNeural",               # ok
+    # "en" : "en-US-AnaNeural",               # ok
     }
 
-    if language not in language_speaker.keys():
-        used_speaker = "zh-CN-XiaoyiNeural"
-    else:
-        used_speaker = language_speaker[language]
-        print("检测到语种：", language, "使用音色：", language_speaker[language])
+    # if language not in language_speaker.keys():
+    #     used_speaker = "zh-CN-XiaoyiNeural"
+    # else:
+    #     used_speaker = language_speaker[language]
+    #     print("检测到语种：", language, "使用音色：", language_speaker[language])
+
+    used_speaker = "zh-CN-XiaoyiNeural"
 
     global audio_file_count
     asyncio.run(amain(text, used_speaker, os.path.join(folder_path,f"sft_{audio_file_count}.mp3")))
@@ -373,9 +429,9 @@ if __name__ == "__main__":
     try:
         # 启动音视频录制线程
         audio_thread = threading.Thread(target=audio_recorder)
-        #video_thread = threading.Thread(target=video_recorder)
+        video_thread = threading.Thread(target=video_recorder)
         audio_thread.start()
-        #video_thread.start()
+        video_thread.start()
         
         print("按 Ctrl+C 停止录制")
         while True:
@@ -385,5 +441,5 @@ if __name__ == "__main__":
         print("录制停止中...")
         recording_active = False
         audio_thread.join()
-        #video_thread.join()
+        video_thread.join()
         print("录制已停止")
