@@ -1,7 +1,7 @@
 from openai import OpenAI
 import time
 
-client = OpenAI(api_key="sk-3077c1c0c76e4cdbb3a31d55a34134cf", base_url="https://api.deepseek.com")
+client = OpenAI(api_key="you_key", base_url="https://api.deepseek.com")
 
 # 记录开始时间
 start_time = time.time()
